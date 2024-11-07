@@ -1,4 +1,5 @@
 ## Local Development
+![Alt text](./frontend/public/Picture1.png)
 
 ### First-time setup
 
