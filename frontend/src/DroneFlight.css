@@ -5,8 +5,8 @@ body {
 }
 
 input::placeholder {
-    color: #b6b3b3; /* Replace #888 with your desired color */
-    opacity: 1; /* This ensures the color is fully opaque */
+    color: #b6b3b3; 
+    opacity: 1;
   }
 
 .queries {
