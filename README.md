@@ -11,7 +11,7 @@
 2. Frontend
 
 ```shell
-<root> % npm install
+<frontend> % npm install
 ```
 3. Activate the backend virtual environment
 
