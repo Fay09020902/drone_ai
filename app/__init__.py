@@ -58,56 +58,6 @@ def index():
     return jsonify(droneflights)
 
 
-@app.route("/api/query", methods=["POST"])
-def process_query():
-    try:
-        # Extract the JSON data from the request
-        data = request.get_json()
-
-        # Check if data was received correctly
-        if not data or 'query' not in data:
-            return jsonify({"error": "No query found in request"}), 400
-
-        query = data.get("query", "").lower()
-
-        # Regex to find numbers or ordinals in the query
-        match = re.search(
-            r"\b(\d+|first|second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth)\b", query)
-        subject_match = re.search(
-            r"\b(altitude|battery|speed|heading|latitude|longitude|camera tilt|focal length|iso|shutter speed|aperture|color temperature|file size|gps accuracy|gimbal mode|subject detection)\b", query)
-
-        # Determine the record index and subject
-        if match:
-            number_text = match.group(1)
-            if number_text.isdigit():
-                # Convert 1-based index to 0-based
-                index = int(number_text) - 1
-            else:
-                index = ordinal_to_number(number_text) - 1
-
-            # Ensure the index is within bounds
-            if index < 0 or index >= len(droneflights):
-                return jsonify({"response": f"No record found for the {number_text} entry."}), 200
-        else:
-            return jsonify({"response": "No valid number or ordinal found in query."}), 200
-
-        if subject_match:
-            subject = subject_match.group(1)
-            field = subject_field_map.get(subject)
-            record = droneflights[index]
-
-            # Retrieve the requested data
-            response_text = f"The {subject} for the {number_text} entry is {record.get(field, 'not available')}."
-        else:
-            response_text = f"I'm not sure which subject you're asking about in: {query}"
-
-        return jsonify({"response": response_text})
-
-    except Exception as e:
-        # Print the error to the Flask console for debugging
-        print("Error processing query:", e)
-        return jsonify({"error": "An internal error occurred"}), 500
-
 
 @app.route("/api/test", methods=["POST"])
 def query():
@@ -120,14 +70,43 @@ def query():
         response = client.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[
-                {"role": "user", "content": f"Answer the following query: {query}"}],
+                {
+                    "role": "user",
+                    "content": f"Extract the subject and number from the following sentence: {query}. Only return the subject and number in a clear format, like 'Subject: [subject], Number: [number]'."
+                }
+            ],
             max_tokens=100,
         )
 
-        print(response)
-        # Extract the generated text from the OpenAI response
-        generated_text = response.choices[0].text.strip()
-        return jsonify({"response": generated_text})
+        generated_text = response.choices[0].message.content.strip()
+
+        subject_match = re.search(r'Subject: (\w+)', generated_text)
+        number_match = re.search(r'Number: (\d+)', generated_text)
+
+        print(response, subject_match, number_match)
+        # Handle missing matches or data
+        if not subject_match or not number_match:
+            return jsonify({"response": "Could not parse subject or number from the response."}), 200
+
+        # Parse extracted information
+        subject = subject_match.group(1).lower()
+        number_text = number_match.group(1)
+
+        # Map the subject to a field in the data
+        field = subject_field_map.get(subject)
+        if not field:
+            return jsonify({"response": f"Unknown subject: {subject}."}), 200
+
+        # Convert number text to an index, making sure it’s within bounds
+        index = int(number_text) - 1
+        if index < 0 or index >= len(droneflights):
+            return jsonify({"response": f"No record found for the {number_text} entry."}), 200
+
+        # Retrieve and return the data
+        record = droneflights[index]
+         # Retrieve the requested data
+        response_data = f"The {subject} for the {index} entry is {record.get(field, 'not available')}."
+        return jsonify({"response": response_data}), 200
 
     except Exception as e:
         # Print the error to the Flask console for debugging
@@ -139,9 +118,7 @@ def query():
 @app.route('/', defaults={'path': ''})
 @app.route('/<path:path>')
 def serve(path):
-    # If the path is a file (e.g., JS, CSS), return it from the build folder
     if path != "" and os.path.exists(os.path.join(app.static_folder, path)):
         return send_from_directory(app.static_folder, path)
-    # Otherwise, return the index.html
     else:
         return send_from_directory(app.static_folder, 'index.html')

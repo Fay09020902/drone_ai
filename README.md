@@ -30,3 +30,4 @@
 <frontend> % npm start
 ```
 
+ If any environment variables are required (such as API keys), make sure they are configured locally in .flaskenv files.
